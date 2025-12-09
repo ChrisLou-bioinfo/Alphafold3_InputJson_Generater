@@ -1,0 +1,10 @@
+services:
+  af3-web-tool:
+    build:
+      context: ./flask_tool
+    container_name: af3_input_generator
+    ports:
+      - "19999:19999"
+    restart: unless-stopped
+    environment:
+      - FLASK_ENV=production

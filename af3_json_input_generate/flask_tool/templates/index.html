@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AF3 Input Generator</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: #f4f4f9;
+            color: #333;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        h1,
+        h2 {
+            color: #2c3e50;
+        }
+
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        input[type="text"],
+        input[type="number"],
+        textarea,
+        select {
+            width: 100%;
+            padding: 8px;
+            box-sizing: border-box;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        textarea {
+            height: 80px;
+            font-family: monospace;
+        }
+
+        .row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 5px;
+        }
+
+        .btn {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .btn-primary {
+            background: #3498db;
+            color: white;
+        }
+
+        .btn-success {
+            background: #2ecc71;
+            color: white;
+        }
+
+        .btn-danger {
+            background: #e74c3c;
+            color: white;
+            padding: 5px 10px;
+            font-size: 12px;
+        }
+
+        .btn-warning {
+            background: #f1c40f;
+            color: #333;
+        }
+
+        .entity-item {
+            border: 1px solid #eee;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            background: #fafafa;
+        }
+
+        .entity-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .badge {
+            background: #95a5a6;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>AlphaFold 3 Input Generator</h1>
+
+    <form id="mainForm" action="/process" method="POST" enctype="multipart/form-data">
+        <!-- 1. Configuration -->
+        <div class="card">
+            <h2>1. Job Details</h2>
+            <div class="form-group">
+                <label>Job Name</label>
+                <input type="text" name="job_name" value="af3_job" required>
+            </div>
+            <div class="form-group">
+                <label>Random Seeds (comma separated)</label>
+                <input type="text" name="seeds" value="1" required>
+            </div>
+            <div class="form-group">
+                <label>Template Structures (CIF) - Optional</label>
+                <!-- Custom File Upload UI -->
+                <div style="border: 2px dashed #ddd; padding: 20px; text-align: center; border-radius: 4px; background: #fafafa;"
+                    id="dropZone">
+                    <p style="margin: 0 0 10px 0; color: #666;">Drag & drop CIF files here, or</p>
+                    <button type="button" class="btn btn-primary"
+                        onclick="document.getElementById('cifSelector').click()">Select Files</button>
+
+                    <!-- 1. Data Selector (Used for picking files, reset after pick) -->
+                    <input type="file" id="cifSelector" accept=".cif,.mmcif" multiple style="display: none;"
+                        onchange="handleFileSelect(this)">
+
+                    <!-- 2. Submission Input (Holds effective list, actually submitted) -->
+                    <input type="file" id="cifSubmit" name="cif_file" multiple style="display: none;">
+                </div>
+
+                <!-- File List Display -->
+                <div id="fileList" style="margin-top: 15px;"></div>
+            </div>
+        </div>
+
+        <!-- 2. Sequences -->
+        <div class="card">
+            <h2>2. Sequences</h2>
+            <div style="margin-bottom: 15px;">
+                <button type="button" class="btn btn-primary" onclick="addEntity('protein')">+ Protein</button>
+                <button type="button" class="btn btn-warning" onclick="addEntity('ligand')">+ Ligand</button>
+                <button type="button" class="btn btn-success" onclick="addEntity('rna')">+ RNA</button>
+                <button type="button" class="btn btn-success" onclick="addEntity('dna')">+ DNA</button>
+            </div>
+
+            <div id="entityList"></div>
+
+            <!-- Hidden input to store the JSON structure when submitting -->
+            <input type="hidden" name="sequences" id="sequencesInput">
+        </div>
+
+        <div style="text-align: right;">
+            <button type="submit" class="btn btn-primary" style="font-size: 18px; padding: 15px 30px;">Generate
+                JSON</button>
+        </div>
+    </form>
+
+    <script>
+        let entities = [];
+
+        function renderEntities() {
+            const list = document.getElementById('entityList');
+            list.innerHTML = '';
+
+            entities.forEach((entity, index) => {
+                const el = document.createElement('div');
+                el.className = 'entity-item';
+
+                let fields = '';
+
+                if (['protein', 'rna', 'dna'].includes(entity.type)) {
+                    fields += `
+                        <div class="form-group">
+                            <label>Sequence ID (e.g. A)</label>
+                            <input type="text" value="${entity.data.id}" onchange="updateEntity(${index}, 'id', this.value)">
+                        </div>
+                        <div class="form-group">
+                            <label>Sequence</label>
+                            <textarea onchange="updateEntity(${index}, 'sequence', this.value)">${entity.data.sequence || ''}</textarea>
+                        </div>
+                        
+                        <!-- Modifications Section -->
+                        <div class="form-group">
+                            <label>Modifications</label>
+                            <div id="mods-${index}">
+                                ${renderModifications(index, entity.type)}
+                            </div>
+                            <button type="button" class="btn btn-warning" style="font-size: 12px; margin-top: 5px;" onclick="addModification(${index})">+ Add Modification</button>
+                        </div>
+                    `;
+                } else if (entity.type === 'ligand') {
+                    fields += `
+                        <div class="form-group">
+                            <label>Ligand ID (e.g. L)</label>
+                            <input type="text" value="${entity.data.id}" onchange="updateEntity(${index}, 'id', this.value)">
+                        </div>
+                        <div class="form-group">
+                            <label>CCD Codes (comma separated)</label>
+                            <input type="text" value="${entity.data.ccdCodes ? entity.data.ccdCodes.join(', ') : ''}" placeholder="ATP, MG" onchange="updateEntityCcd(${index}, this.value)">
+                        </div>
+                        <div class="form-group">
+                            <label>Or SMILES</label>
+                            <input type="text" value="${entity.data.smiles || ''}" placeholder="C=C" onchange="updateEntity(${index}, 'smiles', this.value)">
+                        </div>
+                    `;
+                }
+
+                el.innerHTML = `
+                    <div class="entity-header">
+                        <span class="badge">${entity.type.toUpperCase()}</span>
+                        <button type="button" class="btn btn-danger" onclick="removeEntity(${index})">Remove</button>
+                    </div>
+                    ${fields}
+                `;
+                list.appendChild(el);
+            });
+        }
+
+        function renderModifications(entityIndex, entityType) {
+            const mods = entities[entityIndex].data.modifications || [];
+            if (mods.length === 0) return '<small style="color: #999;">No modifications</small>';
+
+            const typeKey = entityType === 'protein' ? 'ptmType' : 'modificationType';
+            const posKey = entityType === 'protein' ? 'ptmPosition' : 'basePosition';
+
+            return mods.map((mod, modIndex) => `
+                <div class="row" style="align-items: center;">
+                    <input type="text" placeholder="Type (e.g. HY3)" value="${mod[typeKey] || ''}" style="flex: 1;" onchange="updateModification(${entityIndex}, ${modIndex}, '${typeKey}', this.value)">
+                    <input type="number" placeholder="Pos (e.g. 1)" value="${mod[posKey] || ''}" style="width: 80px;" onchange="updateModification(${entityIndex}, ${modIndex}, '${posKey}', parseInt(this.value))">
+                    <button type="button" class="btn btn-danger" onclick="removeModification(${entityIndex}, ${modIndex})">x</button>
+                </div>
+            `).join('');
+        }
+
+        function addModification(entityIndex) {
+            if (!entities[entityIndex].data.modifications) {
+                entities[entityIndex].data.modifications = [];
+            }
+            entities[entityIndex].data.modifications.push({});
+            renderEntities();
+        }
+
+        function updateModification(entityIndex, modIndex, key, value) {
+            entities[entityIndex].data.modifications[modIndex][key] = value;
+        }
+
+        function removeModification(entityIndex, modIndex) {
+            entities[entityIndex].data.modifications.splice(modIndex, 1);
+            renderEntities();
+        }
+
+        function addEntity(type) {
+            let data = {};
+            if (type === 'protein') data = { id: "A", sequence: "", modifications: [] };
+            if (type === 'ligand') data = { id: "L", ccdCodes: [] };
+            if (type === 'rna') data = { id: "R", sequence: "", modifications: [] };
+            if (type === 'dna') data = { id: "D", sequence: "", modifications: [] };
+
+            entities.push({ type, data });
+            renderEntities();
+        }
+
+        function updateEntity(index, field, value) {
+            entities[index].data[field] = value;
+        }
+
+        function updateEntityCcd(index, value) {
+            entities[index].data.ccdCodes = value.split(',').map(s => s.trim()).filter(s => s);
+        }
+
+        function removeEntity(index) {
+            entities.splice(index, 1);
+            renderEntities();
+        }
+
+        // On Submit, serialize entities to JSON and put in hidden field
+        document.getElementById('mainForm').onsubmit = function () {
+            // Transform structure to match AF3 expected input
+            // List of dicts, each key is the type
+
+            const sequenceList = entities.map(e => {
+                const obj = {};
+                // Cleanup empty fields
+                const cleanData = { ...e.data };
+                if (e.type === 'ligand') {
+                    if ((!cleanData.ccdCodes || cleanData.ccdCodes.length === 0) && cleanData.smiles) {
+                        delete cleanData.ccdCodes;
+                    } else if (cleanData.ccdCodes && cleanData.ccdCodes.length > 0) {
+                        delete cleanData.smiles;
+                    }
+                }
+                obj[e.type] = cleanData;
+                return obj;
+            });
+
+            document.getElementById('sequencesInput').value = JSON.stringify(sequenceList);
+            return true;
+        };
+
+        // File Management Logic
+        let selectedFiles = [];
+
+        function handleFileSelect(input) {
+            const files = Array.from(input.files);
+
+            // Deduplicate by name
+            const existingNames = new Set(selectedFiles.map(f => f.name));
+            files.forEach(f => {
+                if (!existingNames.has(f.name)) {
+                    selectedFiles.push(f);
+                }
+            });
+
+            updateSubmitInput();
+            renderFileList();
+
+            // Clear the Selector Input so onchange triggers again if same file selected
+            input.value = '';
+        }
+
+        function renderFileList() {
+            const container = document.getElementById('fileList');
+            container.innerHTML = '';
+
+            if (selectedFiles.length === 0) return;
+
+            selectedFiles.forEach((file, index) => {
+                const el = document.createElement('div');
+                el.className = 'entity-item';
+                el.style.display = 'flex';
+                el.style.justifyContent = 'space-between';
+                el.style.alignItems = 'center';
+                el.style.padding = '8px 12px';
+
+                el.innerHTML = `
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span style="font-weight: bold; color: #555;">CIF</span>
+                        <span>${file.name}</span>
+                        <span style="color: #999; font-size: 12px;">(${formatSize(file.size)})</span>
+                    </div>
+                    <button type="button" class="btn btn-danger" style="padding: 2px 8px;" onclick="removeFile(${index})">Remove</button>
+                `;
+                container.appendChild(el);
+            });
+        }
+
+        function removeFile(index) {
+            selectedFiles.splice(index, 1);
+            updateSubmitInput();
+            renderFileList();
+        }
+
+        function updateSubmitInput() {
+            const dataTransfer = new DataTransfer();
+            selectedFiles.forEach(file => {
+                dataTransfer.items.add(file);
+            });
+            // Update the ACTUAL submission input
+            document.getElementById('cifSubmit').files = dataTransfer.files;
+        }
+
+        function formatSize(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        // Initialize entities
+        addEntity('protein');
+    </script>
+</body>
+
+</html>
