@@ -1,5 +1,7 @@
 # AlphaFold 3 Input Generator
 
+**License & Attribution:** This project is licensed under the MIT License. When using or redistributing this project (or derivatives), please attribute the original author: Jiacheng Lou — https://github.com/ChrisLou-bioinfo. See `LICENSE` and `ATTRIBUTION.md` for details.
+
 这是一个基于 Web 的工具，用于生成 AlphaFold 3 的 JSON 输入文件 (`af3_input.json`)。它支持从 CIF 模板自动映射结构信息，并提供用户友好的界面来配置蛋白质、配体、RNA 和 DNA 序列及其修饰 (PTM)。
 
 ## 功能特点
