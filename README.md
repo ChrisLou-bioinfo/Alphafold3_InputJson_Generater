@@ -170,4 +170,4 @@
     - 提交 Issue / PR 前，请确保在 `add-flask-and-docker` 分支或其他 feature 分支上工作。
     - 欢迎补充更多模板匹配策略或前端功能。
 
-    如需进一步帮助，请联系仓库维护者。
+    如需进一步帮助，请联系仓库维护者loujiacneg1986@foxmail.com。
